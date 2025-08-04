@@ -101,14 +101,16 @@ DATABASE_URL=postgresql://user:pass@host/db
 
 ## Deploy
 
-```bash
+```bash powershell
 # Backend
 cd travel-agent-api
+poetry shell #ambiente virtuale
 uvicorn src.travel_agent_api.main:app --host 127.0.0.1 --port 8080
 
 # Frontend  
 cd web_TravelAgent
 php artisan serve
+npm run dev
 ```
 
 ## Tecnologie Chiave
