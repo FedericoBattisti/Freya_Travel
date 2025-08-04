@@ -18,7 +18,7 @@ def health_check():
         "status": "healthy",
         "services": {
             "agent_service": "active",
-            "tools": ["flights_finder", "hotels_finder", "chain_historical_expert", "chain_travel_plan"]
+            "tools": ["flights_finder", "hotels_finder", "images_finder", "chain_historical_expert", "chain_travel_plan"]
         }
     }
 
@@ -35,7 +35,8 @@ def list_services():
                     "Pianificazione viaggi personalizzata",
                     "Suggerimenti per destinazioni", 
                     "Consigli su alloggi e ristoranti",
-                    "Creazione di itinerari dettagliati"
+                    "Creazione di itinerari dettagliati",
+                    "Ricerca immagini di destinazioni"
                 ]
             }
         ],
@@ -61,6 +62,19 @@ def list_tools():
                 "requirements": ["SERPAPI_API_KEY"]
             },
             {
+                "name": "images_finder",
+                "description": "Cerca immagini di destinazioni usando SerpAPI Google Images",
+                "endpoint": "/chat/travel-agent",
+                "status": "available",
+                "requirements": ["SERPAPI_API_KEY"],
+                "features": [
+                    "Immagini di attrazioni turistiche",
+                    "Foto di hotel e ristoranti", 
+                    "Panorami e paesaggi",
+                    "Street view e mappe visive"
+                ]
+            },
+            {
                 "name": "chain_historical_expert",
                 "description": "Esperto storico per informazioni sui luoghi",
                 "endpoint": "/chat/travel-agent",
@@ -75,7 +89,7 @@ def list_tools():
                 "requirements": ["OPENAI_API_KEY"]
             }
         ],
-        "total_tools": 4
+        "total_tools": 5
     }
 
 origins = ["http://127.0.0.1:8000", "http://localhost:8000"]
@@ -87,7 +101,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
 
 app.include_router(
     chat_router,  

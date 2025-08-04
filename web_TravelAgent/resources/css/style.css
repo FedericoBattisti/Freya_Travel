@@ -627,168 +627,195 @@
     animation-delay: 0.4s;
 }
 
-/* Animations */
-@keyframes pulse {
-    0%, 100% {
-        opacity: 1;
-    }
-    50% {
-        opacity: 0.5;
-    }
+/* Stili per le immagini AI - CORRETTO */
+.ai-image {
+    width: 100%;
+    max-width: 500px; /* Dimensione massima più grande */
+    min-width: 300px; /* Dimensione minima definita */
+    height: auto;
+    min-height: 220px; /* Altezza minima aumentata */
+    border-radius: 12px;
+    margin: 12px 0;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+    object-fit: cover;
+    display: block; /* Assicura che l'immagine sia un blocco */
 }
 
-@keyframes messageSlideIn {
-    from {
-        opacity: 0;
-        transform: translateY(20px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
+.ai-image:hover {
+    transform: scale(1.03);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
 }
 
-@keyframes fadeIn {
-    from {
-        opacity: 0;
-    }
-    to {
-        opacity: 1;
-    }
+.ai-image.lazy {
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    background: linear-gradient(45deg, #f0f0f0, #e0e0e0);
+    background-size: 400% 400%;
+    animation: shimmer 1.5s ease-in-out infinite;
 }
 
-@keyframes typingDot {
-    0%, 60%, 100% {
-        transform: translateY(0);
-    }
-    30% {
-        transform: translateY(-10px);
-    }
+.ai-image.loaded {
+    opacity: 1;
 }
 
-/* Scrollbar personalizzata */
-.chat-box::-webkit-scrollbar {
-    width: 6px;
+.image-link-container {
+    margin: 16px 0;
+    text-align: center;
+    max-width: 100%;
+    width: 100%;
 }
 
-.chat-box::-webkit-scrollbar-track {
-    background: var(--chat-surface);
+.image-link-container .ai-image {
+    min-width: 450px; /* Ancora più grande per immagini singole */
+    max-width: 650px; /* Aumentato */
+    min-height: 280px; /* Aumentato */
+    border-radius: 16px;
+    margin: 20px auto; /* Centra l'immagine */
 }
 
-.chat-box::-webkit-scrollbar-thumb {
-    background: var(--chat-border);
-    border-radius: 3px;
+/* Per immagini dentro il contenuto AI */
+.ai-response-content img,
+.ai-response-content .ai-image {
+    width: 100%;
+    max-width: 550px;
+    min-width: 350px;
+    min-height: 250px;
+    border-radius: 12px;
+    margin: 16px auto;
+    display: block;
+    object-fit: cover;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
 }
 
-.chat-box::-webkit-scrollbar-thumb:hover {
-    background: var(--chat-text-muted);
+/* Grid per multiple immagini - MIGLIORATO */
+.images-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); /* Più grandi */
+    gap: 20px;
+    margin: 20px 0;
+    max-width: 100%;
 }
 
-/* Responsive */
+.images-grid .ai-image {
+    margin: 0;
+    width: 100%;
+    height: 240px; /* Altezza fissa più grande */
+    min-width: unset; /* Rimuovi min-width nel grid */
+    aspect-ratio: 16/9;
+    object-fit: cover;
+    border-radius: 12px;
+}
+
+/* Stili specifici per tipi di contenuto */
+.ai-response-content .image-link-container:only-child .ai-image,
+.ai-response-content .image-link-container:first-child:last-child .ai-image {
+    /* Immagine singola MOLTO più grande */
+    min-width: 500px;
+    max-width: 750px;
+    min-height: 350px;
+    margin: 24px auto;
+    display: block;
+}
+
+/* Forza dimensioni minime per tutte le immagini nel chat */
+.message-bubble .ai-image,
+.message-content .ai-image,
+.ai-bubble .ai-image {
+    min-width: 350px !important;
+    max-width: 600px !important;
+    min-height: 250px !important;
+    width: auto !important;
+    height: auto !important;
+    display: block !important;
+    margin: 16px auto !important;
+}
+
+/* Responsive migliorato */
 @media (max-width: 768px) {
-    .message-wrapper {
-        max-width: 90%;
+    .ai-image {
+        min-width: 280px; /* Aumentato per mobile */
+        max-width: 100%;
+        min-height: 200px;
     }
-
-    .chat-header {
-        padding: 1rem;
+    
+    .image-link-container .ai-image {
+        min-width: 100%;
+        max-width: 100%;
+        min-height: 220px;
     }
-
-    .chat-input-container {
-        padding: 1rem;
+    
+    .message-bubble .ai-image,
+    .message-content .ai-image,
+    .ai-bubble .ai-image {
+        min-width: 100% !important;
+        max-width: 100% !important;
+        min-height: 200px !important;
     }
-
-    .quick-suggestions {
-        flex-direction: column;
-        align-items: center;
+    
+    .images-grid {
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 16px;
+    }
+    
+    .images-grid .ai-image {
+        height: 200px;
     }
 }
 
-@media screen and (max-width: 600px) {
-    .sidebar {
-        min-height: 80vh;
-        width: auto;
+@media (max-width: 480px) {
+    .ai-image {
+        min-width: 100%;
+        min-height: 180px;
     }
+    
+    .images-grid {
+        grid-template-columns: 1fr; /* Una colonna su mobile molto piccolo */
+        gap: 12px;
+    }
+    
+    .images-grid .ai-image {
+        height: 180px;
+    }
+    
+    .ai-response-content .image-link-container:only-child .ai-image,
+    .ai-response-content .image-link-container:first-child:last-child .ai-image {
+        min-width: 100%;
+        min-height: 250px;
+    }
+}
 
-    .chat-input {
-        padding: 0px;
-        column-gap: 10px;
-        border-top: none;
-        -webkit-box-shadow: 0px -8px 56px 5px rgba(26, 26, 26, 1);
-        -moz-box-shadow: 0px -8px 56px 5px rgba(26, 26, 26, 1);
-        box-shadow: 0px -8px 56px 5px rgba(26, 26, 26, 1);
-    }
+/* Placeholder per immagini che non caricano */
+.ai-image-placeholder {
+    min-width: 300px;
+    min-height: 200px;
+    background: linear-gradient(135deg, var(--chat-surface), var(--chat-surface-hover));
+    border: 2px dashed var(--chat-border);
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--chat-text-muted);
+    font-size: 14px;
+    margin: 12px 0;
+}
 
-    .chat-input button,
-    .chat-input button:is(:hover, :focus) {
-        background-color: var(--primary-color);
-        color: var(--accent-color);
-        border: none;
-        font-size: 1.2em;
-    }
+.ai-image-placeholder::before {
+    content: "🖼️ Immagine non disponibile";
+}
 
-    .chat-box .chat-message {
-        font-size: 18px;
-        column-gap: 0px;
-    }
+/* Effetto hover migliorato */
+.image-link-container:hover .ai-image {
+    transform: translateY(-4px);
+    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.25);
+}
 
-    .chatlist-container {
-        height: auto;
-    }
-
-    .chat-box {
-        padding: 0px;
-    }
-
-    .generatedImage img {
-        width: 100%;
-        max-width: 512px;
-    }
-
-    .btn-chat {
-        display: flex;
-    }
-
-    .btn-chat .deleteBtn {
-        display: inline-block;
-    }
-
-    table {
-        border: 0;
-    }
-
-    table thead {
-        border: none;
-        clip: rect(0 0 0 0);
-        height: 1px;
-        margin: -1px;
-        overflow: hidden;
-        padding: 0;
-        position: absolute;
-        width: 1px;
-    }
-
-    table tr {
-        display: block;
-        margin-bottom: .625em;
-    }
-
-    table td {
-        border-bottom: 1px solid #ddd;
-        display: block;
-        font-size: 1em;
-        position: relative;
-    }
-
-    table td::before {
-        content: attr(data-label);
-        float: left;
-        font-weight: bold;
-        text-transform: uppercase;
-        margin-right: 10px;
-    }
-
-    table td:last-child {
-        border-bottom: 0;
-    }
+/* Stile per caption più visibile */
+.image-caption {
+    background: rgba(0, 0, 0, 0.1);
+    padding: 4px 8px;
+    border-radius: 6px;
+    display: inline-block;
+    margin-top: 8px;
 }

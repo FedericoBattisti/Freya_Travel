@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Dict
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain.agents import AgentExecutor, create_openai_functions_agent
@@ -12,6 +13,7 @@ try:
     from travel_agent_api.tools.hotels_finder import hotels_finder_tool  
     from travel_agent_api.tools.chain_historical_expert import chain_historical_expert_tool
     from travel_agent_api.tools.chain_travel_plan import chain_travel_plan_tool
+    from travel_agent_api.tools.images_finder import images_finder_tool  # NUOVO!
     print("✅ Tool importati con successo")
 except ImportError as e:
     print(f"⚠️ Errore nell'importazione dei tool: {e}")
@@ -19,6 +21,7 @@ except ImportError as e:
     hotels_finder_tool = None
     chain_historical_expert_tool = None
     chain_travel_plan_tool = None
+    images_finder_tool = None  # NUOVO!
 
 load_dotenv()
 
@@ -31,13 +34,14 @@ class Agent:
             openai_api_key=os.getenv("OPENAI_API_KEY")
         )
         
-        # Crea la lista dei tool disponibili (solo se importati correttamente)
+        # Crea la lista dei tool disponibili (incluse le immagini!)
         self.tools = []
         available_tools = [
             ("flights_finder", flights_finder_tool),
             ("hotels_finder", hotels_finder_tool),
             ("historical_expert", chain_historical_expert_tool),
-            ("travel_plan", chain_travel_plan_tool)
+            ("travel_plan", chain_travel_plan_tool),
+            ("images_finder", images_finder_tool)  # AGGIUNTO!
         ]
         
         for name, tool in available_tools:
@@ -57,7 +61,7 @@ class Agent:
     def _setup_agent_with_tools(self):
         """Configura l'agente con i tool disponibili"""
         try:
-            # Crea il prompt per l'agente con tool
+            # Crea il prompt per l'agente con tool (AGGIORNATO!)
             prompt = ChatPromptTemplate.from_messages([
                 ("system", f"""
 🌟 Sei TravelAgent, un esperto agente di viaggio AI professionale e amichevole!
@@ -69,6 +73,7 @@ Hai accesso a questi strumenti potenti e DEVI utilizzarli quando appropriato:
 - hotels_finder: per trovare hotel disponibili usando SerpAPI
 - chain_historical_expert: per informazioni storiche sui luoghi
 - chain_travel_plan: per creare piani di viaggio dettagliati
+- images_finder: per cercare e mostrare immagini di destinazioni, hotel, attrazioni
 
 REGOLE OBBLIGATORIE:
 1. LEGGI ATTENTAMENTE la richiesta dell'utente
@@ -76,20 +81,24 @@ REGOLE OBBLIGATORIE:
 3. SE l'utente menziona HOTEL/ALLOGGIO/DORMIRE → USA SEMPRE hotels_finder  
 4. SE l'utente chiede STORIA/CULTURA/MONUMENTI → USA SEMPRE chain_historical_expert
 5. SE l'utente chiede ITINERARIO/PIANO/PROGRAMMA → USA SEMPRE chain_travel_plan
+6. SE l'utente chiede IMMAGINI/FOTO/MOSTRA/VEDERE → USA SEMPRE images_finder
+
+QUANDO DESCRIVI UNA DESTINAZIONE, USA SEMPRE images_finder per mostrare foto!
 
 ANALIZZA il contenuto del messaggio dell'utente e identifica le parole chiave che indicano quale tool usare.
 
-NON dare mai risposte generiche come "Come posso aiutarti?" - USA SEMPRE i tool appropriati!
-
 Esempi di analisi:
 - "Voglio un volo da Milano a Roma" → CONTIENE "volo" → USA flights_finder
-- "Dimmi qualcosa su Roma" → CONTIENE richiesta di informazioni → USA chain_historical_expert
-- "Hotel a Roma" → CONTIENE "hotel" → USA hotels_finder
-- "Pianifica 3 giorni a Roma" → CONTIENE "pianifica" → USA chain_travel_plan
+- "Dimmi qualcosa su Roma" → CONTIENE richiesta di informazioni → USA chain_historical_expert + images_finder
+- "Hotel a Roma" → CONTIENE "hotel" → USA hotels_finder + images_finder
+- "Pianifica 3 giorni a Roma" → CONTIENE "pianifica" → USA chain_travel_plan + images_finder
+- "Mostra Roma" → CONTIENE "mostra" → USA images_finder
+- "Come è Venezia?" → Descrizione richiesta → USA images_finder + chain_historical_expert
+- "Itinerario turistico di Amsterdam" → CONTIENE "itinerario" → USA chain_travel_plan + images_finder, le immagini devono essere pertinenti all'attrazione richiesta e devono essere messe nel contesto giusto.
 
-Mantieni sempre il context della conversazione precedente per fornire risposte coerenti.
+IMPORTANTE: Quando parli di una destinazione, INCLUDI SEMPRE le immagini per rendere la risposta più ricca!
 
-Rispondi sempre in italiano con emoji e usa i tool per dare risposte specifiche!
+Rispondi sempre in italiano con emoji e usa i tool per dare risposte specifiche e complete!
                 """),
                 MessagesPlaceholder(variable_name="chat_history"),
                 ("user", "{input}"),
@@ -113,7 +122,7 @@ Rispondi sempre in italiano con emoji e usa i tool per dare risposte specifiche!
                 max_iterations=5
             )
             
-            print(f"🚀 Agente configurato con {len(self.tools)} tool")
+            print(f"🚀 Agente configurato con {len(self.tools)} tool (incluse immagini!)")
             
         except Exception as e:
             print(f"❌ Errore nella configurazione dell'agente: {e}")
@@ -205,6 +214,7 @@ Rispondi sempre in italiano con emoji e usa i tool per dare risposte specifiche!
         5. 🍝 Suggerisci ristoranti e piatti locali
         6. 🎨 Includi attrazioni e attività culturali
         7. Inserisci sempre i loghi delle compagnie aeree e degli hotel quando possibile
+        8. Quando mostri immagini, usa sempre il tool images_finder per cercare foto pertinenti alla destinazione o all'attrazione richiesta inserendo sotto il link per l'immagine in modale in alta risoluzione oppure rendi l'immagine stessa il link cliccabile.
         
         Sii sempre positivo, utile e professionale!
         """
@@ -222,3 +232,76 @@ Rispondi sempre in italiano con emoji e usa i tool per dare risposte specifiche!
             "mode": "simple_chat",
             "context_messages": len(chat_history)
         }
+    
+    def _should_search_images(self, message: str) -> bool:
+        """Rileva se l'utente vuole vedere immagini"""
+        image_keywords = [
+            'mostra', 'immagini', 'foto', 'vedere', 'come', 'aspetto',
+            'panorama', 'vista', 'paesaggio', 'hotel', 'ristorante',
+            'show me', 'pictures', 'photos', 'looks like', 'visual'
+        ]
+        
+        message_lower = message.lower()
+        return any(keyword in message_lower for keyword in image_keywords)
+    
+    def _handle_image_search(self, user_message: str) -> str:
+        """Gestisce le richieste di ricerca immagini"""
+        try:
+            # Estrai destinazione e tipo dal messaggio
+            destination = self._extract_destination(user_message)
+            image_type = self._extract_image_type(user_message)
+            
+            if not destination:
+                return "🖼️ Per cercare immagini, specifica una destinazione. Es: 'Mostra immagini di Roma'"
+            
+            # Cerca immagini
+            result = self.images_finder.search_destination_images(
+                destination=destination,
+                image_type=image_type,
+                num_results=6
+            )
+            
+            if result["success"]:
+                return self._format_image_results(result)
+            else:
+                return f"❌ Non sono riuscito a trovare immagini per {destination}. {result.get('error', '')}"
+                
+        except Exception as e:
+            return f"❌ Errore nella ricerca immagini: {str(e)}"
+    
+    def _extract_image_type(self, message: str) -> str:
+        """Estrae il tipo di immagini richieste"""
+        message_lower = message.lower()
+        
+        if any(word in message_lower for word in ['hotel', 'albergo', 'resort']):
+            return "hotels luxury accommodations"
+        elif any(word in message_lower for word in ['ristorante', 'cibo', 'cucina', 'food']):
+            return "restaurants local cuisine food"
+        elif any(word in message_lower for word in ['spiaggia', 'mare', 'beach']):
+            return "beaches coast seaside"
+        elif any(word in message_lower for word in ['panorama', 'vista', 'skyline']):
+            return "skyline panorama cityscape"
+        else:
+            return "tourist attractions landmarks monuments"
+    
+    def _format_image_results(self, result: Dict) -> str:
+        """Formatta i risultati delle immagini per la risposta"""
+        destination = result["destination"]
+        images = result["images"]
+        total = result["total_results"]
+        
+        response = f"🖼️ **Immagini di {destination}**\n\n"
+        response += f"Ho trovato {total} immagini per te:\n\n"
+        
+        for i, img in enumerate(images[:6], 1):
+            title = img["title"][:50] + "..." if len(img["title"]) > 50 else img["title"]
+            response += f"**{i}. {title}**\n"
+            response += f"🔗 [Visualizza immagine]({img['original']})\n"
+            response += f"📐 Dimensioni: {img['width']}x{img['height']}px\n"
+            if img["source"]:
+                response += f"📍 Fonte: {img['source']}\n"
+            response += "\n"
+        
+        response += "💡 **Suggerimento:** Clicca sui link per vedere le immagini ad alta risoluzione!"
+        
+        return response

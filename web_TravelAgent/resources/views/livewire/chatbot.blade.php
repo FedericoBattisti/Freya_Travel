@@ -46,10 +46,13 @@
                 </div>
                 <div class="message-bubble ai-bubble">
                     <div class="message-content">
-                        {!! $chatMessage['content'] !!}
+                        <!-- Processa il contenuto per renderizzare le immagini -->
+                        <div class="ai-response-content">
+                            {!! $this->processAIContent($chatMessage['content']) !!}
+                        </div>
                     </div>
                     <div class="message-actions">
-                        <button class="action-btn" title="Copia">
+                        <button class="action-btn" title="Copia" onclick="copyToClipboard('{{ $key }}')">
                             <i class="bi bi-clipboard"></i>
                         </button>
                         <button class="action-btn" title="Like">
@@ -78,6 +81,9 @@
                         <button class="suggestion-btn" data-message="Hotel a Parigi">
                             🏨 Trova hotel
                         </button>
+                        <button class="suggestion-btn" data-message="Mostra immagini di Venezia">
+                            🖼️ Mostra immagini
+                        </button>
                         <button class="suggestion-btn" data-message="Itinerario per il Giappone">
                             🗺️ Crea itinerario
                         </button>
@@ -95,11 +101,14 @@
                     <button type="button" class="input-btn" title="Allega file">
                         <i class="bi bi-paperclip"></i>
                     </button>
+                    <button type="button" class="input-btn" title="Cerca immagini" onclick="suggestImageSearch()">
+                        <i class="bi bi-image"></i>
+                    </button>
                 </div>
                 
                 <input 
                     class="message-input" 
-                    placeholder="Scrivi un messaggio..." 
+                    placeholder="Scrivi un messaggio... (prova: 'mostra immagini di Roma')" 
                     wire:model.live="currentMessage" 
                     type="text"
                     autocomplete="off">
@@ -143,6 +152,98 @@ $wire.on('scrollChatToBottom', () => {
     setTimeout(() => {
         chatBox.scrollTop = chatBox.scrollHeight;
     }, 500);
+});
+
+// Gestione dei suggerimenti
+document.addEventListener('DOMContentLoaded', function() {
+    // Click sui suggestion buttons
+    document.querySelectorAll('.suggestion-btn').forEach(button => {
+        button.addEventListener('click', function() {
+            const message = this.getAttribute('data-message');
+            $wire.set('currentMessage', message);
+            $wire.call('ask');
+        });
+    });
+});
+
+// Funzione per suggerire ricerca immagini
+function suggestImageSearch() {
+    const input = document.querySelector('.message-input');
+    input.value = 'Mostra immagini di ';
+    input.focus();
+    input.setSelectionRange(input.value.length, input.value.length);
+}
+
+// Funzione per copiare testo
+function copyToClipboard(messageKey) {
+    const messageContent = document.querySelector(`[wire\\:key="${messageKey}"] .message-content`);
+    if (messageContent) {
+        const text = messageContent.innerText;
+        navigator.clipboard.writeText(text).then(() => {
+            // Mostra feedback visivo
+            const button = event.target.closest('.action-btn');
+            const originalIcon = button.innerHTML;
+            button.innerHTML = '<i class="bi bi-check"></i>';
+            setTimeout(() => {
+                button.innerHTML = originalIcon;
+            }, 1000);
+        });
+    }
+}
+
+// Gestione click sulle immagini per zoom
+function openImageModal(src, alt) {
+    // Crea modal per visualizzare immagine grande
+    const modal = document.createElement('div');
+    modal.className = 'image-modal';
+    modal.innerHTML = `
+        <div class="image-modal-backdrop" onclick="closeImageModal()">
+            <div class="image-modal-content" onclick="event.stopPropagation()">
+                <button class="image-modal-close" onclick="closeImageModal()">
+                    <i class="bi bi-x-lg"></i>
+                </button>
+                <img src="${src}" alt="${alt}" class="image-modal-img">
+                <div class="image-modal-caption">${alt}</div>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+    document.body.classList.add('modal-open');
+}
+
+function closeImageModal() {
+    const modal = document.querySelector('.image-modal');
+    if (modal) {
+        modal.remove();
+        document.body.classList.remove('modal-open');
+    }
+}
+
+// Gestione lazy loading delle immagini
+function setupLazyLoading() {
+    const images = document.querySelectorAll('.ai-image[data-src]');
+    
+    const imageObserver = new IntersectionObserver((entries, observer) => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                const img = entry.target;
+                img.src = img.dataset.src;
+                img.classList.remove('lazy');
+                img.classList.add('loaded');
+                imageObserver.unobserve(img);
+            }
+        });
+    });
+
+    images.forEach(img => imageObserver.observe(img));
+}
+
+// Inizializza lazy loading quando nuovi messaggi vengono aggiunti
+$wire.on('messageAdded', () => {
+    setTimeout(() => {
+        setupLazyLoading();
+        chatBox.scrollTop = chatBox.scrollHeight;
+    }, 100);
 });
 </script>
 @endscript
