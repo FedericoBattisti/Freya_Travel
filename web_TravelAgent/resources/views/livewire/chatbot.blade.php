@@ -97,26 +97,14 @@
     <div class="chat-input-container">
         <form id="chatForm" wire:submit.prevent="ask" class="chat-input-form">
             <div class="input-wrapper">
-                <div class="input-actions-left">
-                    <button type="button" class="input-btn" title="Allega file">
-                        <i class="bi bi-paperclip"></i>
-                    </button>
-                    <button type="button" class="input-btn" title="Cerca immagini" onclick="suggestImageSearch()">
-                        <i class="bi bi-image"></i>
-                    </button>
-                </div>
-                
                 <input 
                     class="message-input" 
-                    placeholder="Scrivi un messaggio... (prova: 'mostra immagini di Roma')" 
+                    placeholder="Scrivi un messaggio..." 
                     wire:model.live="currentMessage" 
                     type="text"
                     autocomplete="off">
                 
                 <div class="input-actions-right">
-                    <button type="button" class="input-btn" title="Emoji">
-                        <i class="bi bi-emoji-smile"></i>
-                    </button>
                     <button type="submit" class="send-btn" title="Invia">
                         <i class="bi bi-send-fill"></i>
                     </button>
