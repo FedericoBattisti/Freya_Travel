@@ -6,11 +6,11 @@ from typing import Dict, Optional
 @tool
 def images_finder_tool(destination: str, image_type: str = "tourist attractions") -> str:
     """
-    Cerca immagini di destinazioni turistiche usando SerpAPI Google Images.
+    Cerca immagini specifiche di destinazioni turistiche usando SerpAPI Google Images.
     
     Args:
-        destination: Nome della destinazione (es. "Roma", "Torre Eiffel")
-        image_type: Tipo di immagini (tourist attractions, hotels, restaurants, beaches, etc.)
+        destination: Nome SPECIFICO della destinazione (es. "Colosseo Roma", "Sagrada Familia Barcellona")
+        image_type: Tipo di immagini (tourist attractions, hotels, restaurants, monuments, etc.)
     
     Returns:
         Stringa formattata con le immagini trovate
@@ -20,19 +20,27 @@ def images_finder_tool(destination: str, image_type: str = "tourist attractions"
         if not api_key:
             return "❌ SERPAPI_API_KEY non configurata per la ricerca immagini"
         
-        print(f"🔍 Cercando immagini per: {destination} - Tipo: {image_type}")
+        print(f"🎯 Cercando immagini SPECIFICHE per: {destination} - Tipo: {image_type}")
         
-        # Costruisci query di ricerca ottimizzata
-        search_query = f"{destination} {image_type}"
+        # Query più specifica e mirata
+        if "monuments" in image_type or "attractions" in image_type:
+            search_query = f'"{destination}" {image_type} landmark monument'
+        elif "hotels" in image_type:
+            search_query = f'"{destination}" luxury hotel exterior interior'
+        elif "restaurants" in image_type or "food" in image_type:
+            search_query = f'"{destination}" traditional food cuisine restaurant'
+        else:
+            search_query = f'"{destination}" {image_type}'
         
-        # Parametri per Google Images via SerpAPI
+        # Parametri ottimizzati per risultati specifici
         params = {
             "engine": "google_images",
             "q": search_query,
             "api_key": api_key,
-            "num": 8,  # Più immagini per avere scelta migliore
+            "num": 8,
             "safe": "active",
-            "tbs": "ic:color,itp:photo,isz:l"  # Solo foto a colori, grandi dimensioni
+            "tbs": "ic:color,itp:photo,isz:l",  # Foto grandi a colori
+            "ijn": 0
         }
         
         search = GoogleSearch(params)
@@ -41,45 +49,80 @@ def images_finder_tool(destination: str, image_type: str = "tourist attractions"
         if "error" in results:
             return f"❌ Errore nella ricerca immagini: {results['error']}"
         
-        # Processa i risultati delle immagini
         image_results = results.get("images_results", [])
         
         if not image_results:
             return f"❌ Nessuna immagine trovata per {destination}"
         
-        # Formatta la risposta con le immagini
-        response = f"🖼️ **Immagini di {destination}**\n\n"
-        response += f"Ho trovato {len(image_results[:6])} bellissime immagini per te:\n\n"
+        # Filtra risultati per pertinenza
+        filtered_results = filter_relevant_images(image_results, destination)
         
-        for i, img in enumerate(image_results[:6], 1):
-            # Estrai il nome dell'attrazione dal titolo
+        # Formatta la risposta con le immagini specifiche
+        response = f"🖼️ **Immagini di {destination}**\n\n"
+        
+        for i, img in enumerate(filtered_results[:6], 1):
             attraction_name = extract_attraction_name(img.get("title", ""), destination)
             
-            response += f"## {i}. {attraction_name}\n"
+            response += f"### {i}. {attraction_name}\n"
             
-            # Link diretto all'immagine - SEMPRE PRESENTE
             image_url = img.get("original") or img.get("link") or ""
             if image_url:
                 response += f"![{attraction_name}]({image_url})\n"
-                response += f"🔗 **[Visualizza immagine a schermo intero]({image_url})**\n"
+                response += f"🔗 **[Visualizza a schermo intero]({image_url})**\n"
             
-            # Informazioni aggiuntive
             if img.get("original_width") and img.get("original_height"):
-                response += f"📐 **Dimensioni:** {img['original_width']} × {img['original_height']} px\n"
+                response += f"📐 {img['original_width']} × {img['original_height']} px\n"
             
             if img.get("source"):
-                response += f"📍 **Fonte:** {img['source']}\n"
+                response += f"📍 Fonte: {img['source']}\n"
             
-            response += "\n---\n\n"
+            response += "\n"
         
-        response += f"💡 **Suggerimento:** Clicca sui link per vedere le immagini in alta risoluzione!\n"
-        response += f"🔍 **Ricerca effettuata:** {search_query}\n"
-        response += f"🌟 **Destinazione:** {destination}"
+        response += f"🔍 **Query usata:** {search_query}\n"
+        response += f"🎯 **Risultati filtrati:** {len(filtered_results)} di {len(image_results)}\n"
         
         return response
         
     except Exception as e:
         return f"❌ Errore nella ricerca immagini: {str(e)}"
+
+def filter_relevant_images(image_results: list, target_destination: str) -> list:
+    """
+    Filtra le immagini per rilevanza rispetto alla destinazione specifica
+    """
+    target_lower = target_destination.lower()
+    relevant_images = []
+    
+    for img in image_results:
+        title = img.get("title", "").lower()
+        source = img.get("source", "").lower()
+        
+        # Punteggio di rilevanza
+        relevance_score = 0
+        
+        # Controlla se il titolo contiene parole chiave della destinazione
+        target_words = target_lower.split()
+        for word in target_words:
+            if len(word) > 2:  # Ignora preposizioni
+                if word in title:
+                    relevance_score += 2
+                if word in source:
+                    relevance_score += 1
+        
+        # Bonus per fonti affidabili
+        reliable_sources = ["wikipedia", "tripadvisor", "booking", "expedia", "lonely planet"]
+        if any(source_name in source for source_name in reliable_sources):
+            relevance_score += 1
+        
+        # Aggiungi solo se ha un punteggio minimo
+        if relevance_score >= 2:
+            img["relevance_score"] = relevance_score
+            relevant_images.append(img)
+    
+    # Ordina per rilevanza
+    relevant_images.sort(key=lambda x: x.get("relevance_score", 0), reverse=True)
+    
+    return relevant_images
 
 def extract_attraction_name(title: str, destination: str) -> str:
     """
