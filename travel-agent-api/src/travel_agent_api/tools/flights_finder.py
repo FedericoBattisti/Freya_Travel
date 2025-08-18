@@ -1,9 +1,20 @@
 import os
 from dotenv import load_dotenv
 from langchain_core.tools import tool
-from serpapi import GoogleSearch
 from pydantic import BaseModel, Field
 from typing import Optional
+
+try:
+    from serpapi import GoogleSearch
+except ImportError:
+    try:
+        from googlesearch import GoogleSearch
+    except ImportError:
+        try:
+            from serpapi.google_search import GoogleSearch
+        except ImportError:
+            print("❌ SerpAPI non disponibile")
+            GoogleSearch = None
 
 load_dotenv()
 
@@ -45,6 +56,13 @@ def flights_finder(params: FlightsInput):
     Returns:
         dict: Un dizionario con le informazioni sui voli trovati.
     """
+    if GoogleSearch is None:
+        return {
+            "error": "SERPAPI_API_KEY non configurata",
+            "message": "Per cercare voli reali è necessario configurare SERPAPI_API_KEY nel file .env",
+            "suggestion": "Aggiungi SERPAPI_API_KEY=tua_chiave_api nel file .env"
+        }
+    
     try:
         # Verifica che la chiave API sia configurata
         if not os.getenv("SERPAPI_API_KEY"):
