@@ -15,7 +15,7 @@ try:
         chain_historical_expert_tool,
     )
     from travel_agent_api.tools.chain_travel_plan import chain_travel_plan_tool
-    from travel_agent_api.tools.images_finder import images_finder_tool  # NUOVO!
+    from travel_agent_api.tools.images_finder import images_finder_tool
     from travel_agent_api.tools.destination_guide import create_destination_guide_tool
     from travel_agent_api.tools.itinerary_with_images import create_itinerary_with_images_tool
 
@@ -26,7 +26,7 @@ except ImportError as e:
     hotels_finder_tool = None
     chain_historical_expert_tool = None
     chain_travel_plan_tool = None
-    images_finder_tool = None  # NUOVO!
+    images_finder_tool = None
     create_destination_guide_tool = None
     create_itinerary_with_images_tool = None
 
@@ -37,12 +37,14 @@ class Agent:
     def __init__(self):
         self.current_datetime = datetime.now()
         self.model = ChatOpenAI(
-            model_name="gpt-4.1",
+            model_name="gpt-4o-mini",
             temperature=0.7,
             openai_api_key=os.getenv("OPENAI_API_KEY"),
+            request_timeout=60,
+            max_retries=2
         )
 
-        # Crea la lista dei tool disponibili (incluse le immagini!)
+        # Crea la lista dei tool disponibili
         self.tools = []
         base_tools = [
             ("flights_finder", flights_finder_tool),
@@ -77,13 +79,25 @@ class Agent:
     def _setup_agent_with_tools(self):
         """Configura l'agente con i tool disponibili"""
         try:
-            # Crea il prompt per l'agente con tool coordinati
-            prompt = ChatPromptTemplate.from_messages(
-                [
-                    (
-                        "system",
-                        f"""
-🌟 Sei TravelAgent, un esperto agente di viaggio AI professionale e amichevole!
+            # Crea il prompt per l'agente con tool coordinati E personalità Freya
+            prompt = ChatPromptTemplate.from_messages([
+                (
+                    "system",
+                    f"""
+🌟 Il tuo nome è FREYA e sei un'esperta agente di viaggio AI femminile, professionale e amichevole!
+
+PERSONALITÀ E IDENTITÀ:
+- Nome: Freya
+- Ruolo: Assistente di viaggio esperta e appassionata
+- Personalità: Entusiasta, professionale, amichevole, esperta di culture mondiali
+- Stile: Conversazionale ma informativo, usa emoji appropriati
+- Obiettivo: Aiutare gli utenti a pianificare viaggi incredibili e memorabili
+
+PRESENTAZIONE:
+- Presentati sempre come "Freya" quando richiesto
+- Usa un tono caloroso e professionale
+- Mostra passione per i viaggi e le culture
+- Sii precisa e dettagliata nelle informazioni
 
 Data di oggi: {self.current_datetime.strftime('%d/%m/%Y')}
 
@@ -144,140 +158,205 @@ Hai accesso a questi strumenti e DEVI COORDINARLI tra loro:
    - Mostra immagini SPECIFICHE di quello che hai descritto
    - Aggiungi informazioni pratiche (hotel/voli se rilevanti)
 
+🎯 REGOLE DI COMUNICAZIONE FREYA:
+
+1. **SALUTO INIZIALE:**
+   - Presentati come Freya se è il primo messaggio o se richiesto
+   - Usa un tono caloroso: "Ciao! Sono Freya, la tua assistente di viaggio personale!"
+   - Mostra entusiasmo per aiutare nei viaggi
+
+2. **STILE DI RISPOSTA:**
+   - Inizia sempre con un'emoji appropriata (✈️🌍🏖️🏛️)
+   - Usa un linguaggio amichevole ma professionale
+   - Mostra passione genuina per i viaggi e le culture
+   - Usa espressioni come "Che fantastica destinazione!", "Adoro questa città!"
+   - Concludi con suggerimenti o domande per continuare la conversazione
+
+3. **PERSONALITÀ NELLE RISPOSTE:**
+   - Mostra passione per i viaggi e le culture
+   - Condividi curiosità e aneddoti interessanti sui luoghi
+   - Sii sempre positiva e incoraggiante
+
+4. **GESTIONE ERRORI:**
+   - Se qualcosa non funziona, mantieni il tono professionale ma empatico
+   - "Mi dispiace, sto avendo qualche difficoltà tecnica..."
+   - Offri sempre alternative o suggerisci di riprovare
+
 IMPORTANTE: 
+- Ricorda sempre che sei FREYA, l'assistente di viaggio esperta
 - OGNI immagine deve essere PERTINENTE al contenuto specifico
 - USA i nomi esatti delle attrazioni nelle ricerche immagini
 - COORDINA i tool in sequenza logica
 - NON usare immagini generiche se puoi essere specifico
+- Mantieni sempre la tua personalità calorosa e professionale
+- Se NON ci sono immagini specifiche disponibili, usa immagini generiche solo come ultima risorsa
 
 Rispondi sempre in italiano con emoji e usa i tool in modo coordinato!
-                """,
-                    ),
-                    MessagesPlaceholder(variable_name="chat_history"),
-                    ("user", "{input}"),
-                    MessagesPlaceholder(variable_name="agent_scratchpad"),
-                ]
-            )
+                    """
+                ),
+                MessagesPlaceholder(variable_name="chat_history"),
+                ("user", "{input}"),
+                MessagesPlaceholder(variable_name="agent_scratchpad"),
+            ])
 
             # Crea l'agente
             agent = create_openai_functions_agent(
-                llm=self.model, tools=self.tools, prompt=prompt
+                llm=self.model, 
+                tools=self.tools, 
+                prompt=prompt
             )
 
-            # Crea l'executor
+            # Crea l'executor con timeout esteso
             self.agent_executor = AgentExecutor(
                 agent=agent,
                 tools=self.tools,
                 verbose=True,
                 return_intermediate_steps=True,
                 handle_parsing_errors=True,
-                max_execution_time=300,
-                max_iterations=100,
+                max_execution_time=1200,  # 20 minuti
+                max_iterations=8,
+                early_stopping_method="generate"
             )
 
-            print(
-                f"🚀 Agente configurato con {len(self.tools)} tool (incluse immagini!)"
-            )
+            print(f"🚀 Freya configurata con {len(self.tools)} tool e timeout di 1200 secondi")
 
         except Exception as e:
-            print(f"❌ Errore nella configurazione dell'agente: {e}")
+            print(f"❌ Errore nella configurazione di Freya: {e}")
             self.agent_executor = None
 
     def run(self, messages: list):
         try:
-            # Estrai l'ultimo messaggio dell'utente e costruisci la chat history
-            user_message = ""
-            chat_history = []
+            # Reset timeout per richieste lunghe
+            import threading
+            import time
+            
+            def timeout_handler():
+                time.sleep(1080)  # 18 minuti
+                raise TimeoutError("Timeout globale raggiunto")
+            
+            # Timeout globale di 18 minuti usando threading
+            timeout_thread = threading.Thread(target=timeout_handler, daemon=True)
+            timeout_thread.start()
+            
+            try:
+                # Estrai l'ultimo messaggio dell'utente e costruisci la chat history
+                user_message = ""
+                chat_history = []
 
-            if isinstance(messages, list) and messages:
-                # Processa tutti i messaggi per costruire la chat history
-                for i, msg in enumerate(messages):
-                    if isinstance(msg, dict) and "content" in msg:
-                        if msg.get("role") == "user":
-                            if i == len(messages) - 1:  # Ultimo messaggio
-                                user_message = msg["content"]
-                            else:
-                                chat_history.append(
-                                    HumanMessage(content=msg["content"])
-                                )
-                        elif msg.get("role") == "assistant":
-                            chat_history.append(SystemMessage(content=msg["content"]))
+                if isinstance(messages, list) and messages:
+                    # Processa tutti i messaggi per costruire la chat history
+                    for i, msg in enumerate(messages):
+                        if isinstance(msg, dict) and "content" in msg:
+                            if msg.get("role") == "user":
+                                if i == len(messages) - 1:  # Ultimo messaggio
+                                    user_message = msg["content"]
+                                else:
+                                    chat_history.append(
+                                        HumanMessage(content=msg["content"])
+                                    )
+                            elif msg.get("role") == "assistant":
+                                chat_history.append(SystemMessage(content=msg["content"]))
 
-                # Se non abbiamo trovato un messaggio utente, usa l'ultimo
-                if not user_message and messages:
-                    last_msg = messages[-1]
-                    if isinstance(last_msg, dict) and "content" in last_msg:
-                        user_message = last_msg["content"]
-                    elif isinstance(last_msg, str):
-                        user_message = last_msg
-            elif isinstance(messages, str):
-                user_message = messages
+                    # Se non abbiamo trovato un messaggio utente, usa l'ultimo
+                    if not user_message and messages:
+                        last_msg = messages[-1]
+                        if isinstance(last_msg, dict) and "content" in last_msg:
+                            user_message = last_msg["content"]
+                        elif isinstance(last_msg, str):
+                            user_message = last_msg
+                elif isinstance(messages, str):
+                    user_message = messages
 
-            print(f"💬 Messaggio ricevuto: {user_message}")
-            print(f"📝 Chat history: {len(chat_history)} messaggi precedenti")
+                print(f"💬 Messaggio ricevuto da Freya: {user_message}")
+                print(f"📝 Chat history: {len(chat_history)} messaggi precedenti")
 
-            # Se abbiamo l'agente con tool, usalo
-            if self.agent_executor:
-                print("🔧 Usando agente con tool...")
+                # Se abbiamo l'agente con tool, usalo
+                if self.agent_executor:
+                    print("🔧 Freya sta usando i suoi strumenti...")
 
-                result = self.agent_executor.invoke(
-                    {"input": user_message, "chat_history": chat_history}
-                )
+                    result = self.agent_executor.invoke(
+                        {"input": user_message, "chat_history": chat_history}
+                    )
 
-                response_content = result.get("output", "Nessuna risposta generata")
-                print(f"🤖 Risposta agente: {response_content}")
+                    response_content = result.get("output", "Nessuna risposta generata")
+                    print(f"🤖 Risposta di Freya: {response_content}")
 
-                return {
-                    "output": response_content,
-                    "status": "success",
-                    "tools_used": len(self.tools),
-                    "context_messages": len(chat_history),
-                }
+                    return {
+                        "output": response_content,
+                        "status": "success",
+                        "tools_used": len(self.tools),
+                        "context_messages": len(chat_history),
+                        "agent": "Freya"
+                    }
 
-            else:
-                # Fallback a chat semplice
-                print("💭 Usando chat semplice...")
-                return self._simple_chat_response(user_message, chat_history)
+                else:
+                    # Fallback a chat semplice
+                    print("💭 Freya sta usando la modalità chat semplice...")
+                    
+                    # Usa chat semplice come fallback
+                    return self._simple_chat_response(user_message, chat_history)
+            finally:
+                pass  # Il thread daemon si chiuderà automaticamente
 
+        except TimeoutError:
+            return {
+                "output": "⏰ Mi dispiace, la richiesta sta richiedendo più tempo del previsto. Freya sta lavorando su richieste complesse. Riprova tra qualche momento!",
+                "status": "timeout",
+                "agent": "Freya"
+            }
         except Exception as e:
-            print(f"🚨 Errore nell'agent: {e}")
+            print(f"🚨 Errore di Freya: {e}")
             import traceback
-
             traceback.print_exc()
             return {
-                "output": f"🚨 Mi dispiace, ho riscontrato un problema: {str(e)}. Potresti riprovare?",
+                "output": f"🚨 Mi dispiace, Freya ha riscontrato un problema tecnico: {str(e)}. Potresti riprovare?",
                 "status": "error",
                 "error_details": str(e),
+                "agent": "Freya"
             }
 
     def _simple_chat_response(self, user_message: str, chat_history: list = None):
-        """Risposta chat semplice senza tool"""
+        """Risposta chat semplice senza tool ma con personalità Freya"""
         if chat_history is None:
             chat_history = []
 
-        SYSTEM_PROMPT = f"""
-        🌟 Sei TravelAgent, un travel planner professionale e amichevole! 
-        
-        Il tuo compito è organizzare viaggi per gli utenti con entusiasmo e competenza.
-        La data di oggi è {self.current_datetime.strftime('%d/%m/%Y')}
-        
-        Rispondi sempre in italiano con emoji appropriate per rendere la conversazione più coinvolgente.
-        
-        Quando ti chiedono di un viaggio:
-        1. 🎯 Raccogli informazioni: destinazione, date, budget, preferenze
-        2. ✈️ Suggerisci voli (consigli generali)
-        3. 🏨 Consiglia hotel e alloggi
-        4. 🗓️ Proponi un itinerario giornaliero
-        5. 🍝 Suggerisci ristoranti e piatti locali
-        6. 🎨 Includi attrazioni e attività culturali
-        7. Inserisci sempre i loghi delle compagnie aeree e degli hotel quando possibile
-        8. Quando mostri immagini, usa sempre il tool images_finder per cercare foto pertinenti alla destinazione o all'attrazione richiesta inserendo sotto il link per l'immagine in modale in alta risoluzione oppure rendi l'immagine stessa il link cliccabile.
-        
-        Sii sempre positivo, utile e professionale!
+        FREYA_SYSTEM_PROMPT = f"""
+🌟 Sei FREYA, un'assistente di viaggio AI femminile, esperta e appassionata! 
+
+PERSONALITÀ:
+- Nome: Freya
+- Personalità: Entusiasta, professionale, amichevole, esperta di culture mondiali
+- Stile: Conversazionale ma informativo, usa emoji appropriati
+- Obiettivo: Aiutare gli utenti a pianificare viaggi incredibili
+
+Il tuo compito è organizzare viaggi per gli utenti con entusiasmo e competenza.
+La data di oggi è {self.current_datetime.strftime('%d/%m/%Y')}
+
+PRESENTAZIONE:
+- Presentati come "Freya" se è il primo messaggio
+- Usa un tono caloroso: "Ciao! Sono Freya, la tua assistente di viaggio personale!"
+- Mostra entusiasmo per aiutare nei viaggi
+
+STILE DI RISPOSTA:
+- Inizia sempre con un'emoji appropriata (✈️🌍🏖️🏛️)
+- Usa un linguaggio amichevole ma professionale
+- Mostra passione genuina per i viaggi e le culture
+- Usa espressioni come "Che fantastica destinazione!", "Adoro questa città!"
+- Concludi con suggerimenti o domande per continuare la conversazione
+
+Quando ti chiedono di un viaggio:
+1. 🎯 Raccogli informazioni: destinazione, date, budget, preferenze
+2. ✈️ Suggerisci voli (consigli generali)
+3. 🏨 Consiglia hotel e alloggi
+4. 🗓️ Proponi un itinerario giornaliero
+5. 🍝 Suggerisci ristoranti e piatti locali
+6. 🎨 Includi attrazioni e attività culturali
+
+Sii sempre positiva, utile e professionale! Ricorda che sei Freya!
         """
 
         # Costruisci i messaggi includendo la chat history
-        langchain_messages = [SystemMessage(content=SYSTEM_PROMPT)]
+        langchain_messages = [SystemMessage(content=FREYA_SYSTEM_PROMPT)]
         langchain_messages.extend(chat_history)
         langchain_messages.append(HumanMessage(content=user_message))
 
@@ -286,56 +365,50 @@ Rispondi sempre in italiano con emoji e usa i tool in modo coordinato!
         return {
             "output": response.content,
             "status": "success",
-            "mode": "simple_chat",
+            "mode": "freya_simple_chat",
             "context_messages": len(chat_history),
+            "agent": "Freya"
         }
 
     def _should_search_images(self, message: str) -> bool:
         """Rileva se l'utente vuole vedere immagini"""
         image_keywords = [
-            "mostra",
-            "immagini",
-            "foto",
-            "vedere",
-            "come",
-            "aspetto",
-            "panorama",
-            "vista",
-            "paesaggio",
-            "hotel",
-            "ristorante",
-            "show me",
-            "pictures",
-            "photos",
-            "looks like",
-            "visual",
+            "mostra", "immagini", "foto", "vedere", "come", "aspetto", 
+            "panorama", "vista", "paesaggio", "hotel", "ristorante",
+            "show me", "pictures", "photos", "looks like", "visual",
         ]
 
         message_lower = message.lower()
         return any(keyword in message_lower for keyword in image_keywords)
 
-    def _handle_image_search(self, user_message: str) -> str:
-        """Gestisce le richieste di ricerca immagini"""
-        try:
-            # Estrai destinazione e tipo dal messaggio
-            destination = self._extract_destination(user_message)
-            image_type = self._extract_image_type(user_message)
-
-            if not destination:
-                return "🖼️ Per cercare immagini, specifica una destinazione. Es: 'Mostra immagini di Roma'"
-
-            # Cerca immagini
-            result = self.images_finder.search_destination_images(
-                destination=destination, image_type=image_type, num_results=6
-            )
-
-            if result["success"]:
-                return self._format_image_results(result)
-            else:
-                return f"❌ Non sono riuscito a trovare immagini per {destination}. {result.get('error', '')}"
-
-        except Exception as e:
-            return f"❌ Errore nella ricerca immagini: {str(e)}"
+    def _extract_destination(self, message: str) -> str:
+        """Estrae la destinazione dal messaggio dell'utente"""
+        # Lista di città comuni
+        major_cities = [
+            "Roma", "Milano", "Napoli", "Firenze", "Venezia", "Torino", "Bologna",
+            "Parigi", "Londra", "Berlino", "Madrid", "Barcellona", "Amsterdam",
+            "New York", "Tokyo", "Sydney", "Dubai", "Istanbul", "Cairo"
+        ]
+        
+        message_lower = message.lower()
+        
+        for city in major_cities:
+            if city.lower() in message_lower:
+                return city
+        
+        # Pattern generico per estrarre nomi di luoghi
+        import re
+        patterns = [
+            r"(?:a|in|per|di)\s+([A-Z][a-zA-ZÀ-ÿ\s]{2,20})",
+            r"([A-Z][a-zA-ZÀ-ÿ\s]{2,20})\s+(?:viaggio|tour|vacanza)"
+        ]
+        
+        for pattern in patterns:
+            matches = re.findall(pattern, message)
+            if matches:
+                return matches[0].strip()
+        
+        return ""
 
     def _extract_image_type(self, message: str) -> str:
         """Estrae il tipo di immagini richieste"""
@@ -343,9 +416,7 @@ Rispondi sempre in italiano con emoji e usa i tool in modo coordinato!
 
         if any(word in message_lower for word in ["hotel", "albergo", "resort"]):
             return "hotels luxury accommodations"
-        elif any(
-            word in message_lower for word in ["ristorante", "cibo", "cucina", "food"]
-        ):
+        elif any(word in message_lower for word in ["ristorante", "cibo", "cucina", "food"]):
             return "restaurants local cuisine food"
         elif any(word in message_lower for word in ["spiaggia", "mare", "beach"]):
             return "beaches coast seaside"
@@ -364,9 +435,7 @@ Rispondi sempre in italiano con emoji e usa i tool in modo coordinato!
         response += f"Ho trovato {total} immagini per te:\n\n"
 
         for i, img in enumerate(images[:6], 1):
-            title = (
-                img["title"][:50] + "..." if len(img["title"]) > 50 else img["title"]
-            )
+            title = img["title"][:50] + "..." if len(img["title"]) > 50 else img["title"]
             response += f"**{i}. {title}**\n"
             response += f"🔗 [Visualizza immagine]({img['original']})\n"
             response += f"📐 Dimensioni: {img['width']}x{img['height']}px\n"
@@ -375,5 +444,4 @@ Rispondi sempre in italiano con emoji e usa i tool in modo coordinato!
             response += "\n"
 
         response += "💡 **Suggerimento:** Clicca sui link per vedere le immagini ad alta risoluzione!"
-
         return response
